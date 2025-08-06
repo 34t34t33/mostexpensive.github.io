@@ -22,7 +22,7 @@ local transparencyConnections = {}
 local INTERVAL = 0.25
 
 local ALL_ANIMAL_NAMES = {
-    ["Noobini Pizzanini"] = true, ["Lirilì Larilà"] = true, ["Tim Cheese"] = true, ["Fluriflura"] = true, ["Svinina Bombardino"] = true, ["Talpa Di Fero"] = true,
+    ["Noobini Pizzanini"] = true, ["LirilÃ¬ LarilÃ "] = true, ["Tim Cheese"] = true, ["Fluriflura"] = true, ["Svinina Bombardino"] = true, ["Talpa Di Fero"] = true,
     ["Pipi Kiwi"] = true, ["Trippi Troppi"] = true, ["Tung Tung Tung Sahur"] = true, ["Gangster Footera"] = true, ["Boneca Ambalabu"] = true, ["Ta Ta Ta Ta Sahur"] = true,
     ["Tric Trac Baraboom"] = true, ["Bandito Bobritto"] = true, ["Cacto Hipopotamo"] = true, ["Cappuccino Assassino"] = true, ["Brr Brr Patapim"] = true,
     ["Trulimero Trulicina"] = true, ["Bananita Dolphinita"] = true, ["Brri Brri Bicus Dicus Bombicus"] = true, ["Bambini Crostini"] = true, ["Perochello Lemonchello"] = true,
@@ -35,6 +35,26 @@ local ALL_ANIMAL_NAMES = {
     ["La Grande Combinasion"] = true, ["Chimpanzini Spiderini"] = true, ["Garama and Madundung"] = true, ["Torrtuginni Dragonfrutini"] = true, ["Las Tralaleritas"] = true,
     ["Pot Hotspot"] = true, ["Mythic Lucky Block"] = true, ["Brainrot God Lucky Block"] = true, ["Secret Lucky Block"] = true,
 }
+
+-- Function to check if a pet is in a vending machine
+local function isPetInVendingMachine(petName)
+    local plots = workspace:WaitForChild("Plots")
+    for _, plot in ipairs(plots:GetChildren()) do
+        for _, textlabel in ipairs(plot:GetDescendants()) do
+            if textlabel:IsA("TextLabel") and textlabel.Name == "Price" then
+                local parent = textlabel.Parent
+                if parent:FindFirstChild("Stolen") and parent.Stolen.Text == "IN MACHINE" then
+                    local displayNameLabel = parent:FindFirstChild("DisplayName")
+                    local animalName = displayNameLabel and displayNameLabel:IsA("TextLabel") and displayNameLabel.Text or "Unknown"
+                    if animalName == petName then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
 
 local function getPlotFromPosition(pos)
     if typeof(pos) ~= "Vector3" then
@@ -215,10 +235,13 @@ local function runPetScanLoop()
         local highest, bestGen = nil, -1
         for _, m in ipairs(workspace:GetChildren()) do
             if isBasePet(m) and isInEnemyPlot(m) then
-                local g = getFinalGeneration(m)
-                if g > bestGen then
-                    bestGen = g
-                    highest = m
+                -- Skip pets that are in vending machines
+                if not isPetInVendingMachine(m.Name) then
+                    local g = getFinalGeneration(m)
+                    if g > bestGen then
+                        bestGen = g
+                        highest = m
+                    end
                 end
             end
         end
