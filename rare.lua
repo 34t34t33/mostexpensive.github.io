@@ -19,7 +19,7 @@ local isPetScanRunning = false
 local highestGenAnimal = nil
 local currentTargetPlot = nil
 local transparencyConnections = {}
-local INTERVAL = 0.25
+local INTERVAL = 0.5
 
 local ALL_ANIMAL_NAMES = {
     ["Noobini Pizzanini"] = true, ["LirilÃ¬ LarilÃ "] = true, ["Tim Cheese"] = true, ["Fluriflura"] = true, ["Svinina Bombardino"] = true, ["Talpa Di Fero"] = true,
