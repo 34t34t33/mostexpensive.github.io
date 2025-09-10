@@ -1,27 +1,10 @@
-if not math.round then
-    function math.round(n)
-        return n >= 0 and math.floor(n + 0.5) or math.ceil(n - 0.5)
-    end
-end
-
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local HttpService = game:GetService("HttpService")
-local player = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
 
-local AnimalsModule = require(ReplicatedStorage.Datas.Animals)
-local TraitsModule = require(ReplicatedStorage.Datas.Traits)
-local MutationsModule = require(ReplicatedStorage.Datas.Mutations)
-local PlotController = require(ReplicatedStorage.Controllers:WaitForChild("PlotController", 2))
+local LocalPlayer = Players.LocalPlayer
 
-local isPetScanRunning = false
-local highestGenAnimal = nil
-local currentTargetPlot = nil
-local transparencyConnections = {}
-local INTERVAL = 0.5
-
-local ALL_ANIMAL_NAMES = {
+local targetPets = {
     ["Noobini Pizzanini"] = true, ["LirilÃ¬ LarilÃ "] = true, ["Tim Cheese"] = true, ["Fluriflura"] = true, ["Svinina Bombardino"] = true, ["Talpa Di Fero"] = true,
     ["Pipi Kiwi"] = true, ["Trippi Troppi"] = true, ["Tung Tung Tung Sahur"] = true, ["Gangster Footera"] = true, ["Boneca Ambalabu"] = true, ["Ta Ta Ta Ta Sahur"] = true,
     ["Tric Trac Baraboom"] = true, ["Bandito Bobritto"] = true, ["Cacto Hipopotamo"] = true, ["Cappuccino Assassino"] = true, ["Brr Brr Patapim"] = true,
@@ -34,224 +17,186 @@ local ALL_ANIMAL_NAMES = {
     ["Statutino Libertino"] = true, ["Gattatino Neonino"] = true, ["La Vacca Saturno Saturnita"] = true, ["Los Tralaleritos"] = true, ["Graipuss Medussi"] = true,
     ["La Grande Combinasion"] = true, ["Chimpanzini Spiderini"] = true, ["Garama and Madundung"] = true, ["Torrtuginni Dragonfrutini"] = true, ["Las Tralaleritas"] = true,
     ["Pot Hotspot"] = true, ["Mythic Lucky Block"] = true, ["Brainrot God Lucky Block"] = true, ["Secret Lucky Block"] = true,
+    ["Las Vaquitas Saturnitas"] = true, ["Nuclearo Dinossauro"] = true, ["Agarrini la Palini"] = true, ["Los Combinasionas"] = true,
+    ["Tortuginni Dragonfruitini"] = true, ["Chicleteira Bicicleira"] = true, ["Dragon Cannelloni"] = true, ["Los Hotspotsitos"] = true, ["Esok Sekolah"] = true,
+    ["Chicleteira Bicicleteira"] = true, ["The Final Sigma"] = true, ["Nyan Cat"] = true, ["Girafa Celeste"] = true,
+    ["Los Bombinitos"] = true, ["Espresso Signora"] = true, ["Piccione Macchina"] = true, ["Coco Elefanto"] = true,
+    ["Ballerino Lololo"] = true, ["Trigoligre Frutonni"] = true, ["Los Crocodillitos"] = true, ["Trippi Troppi Troppa Trippa"] = true,
+    ["Bulbito Bandito Traktorito"] = true, ["Los Tungtungtungcitos"] = true, ["Tukkano Bananno"] = true, ["Los Orcalitos"] = true,
+    ["Lucky Block"] = true, ["Tob Tobi Tobi"] = true, ["Karkerkar Kurkur"] = true, ["Tracoducotulu Delapeladustuz"] = true,
+    ["Tralalita tralala"] = true, ["Job Job Job Sahur"] = true, ["Tipi Topi Taco"] = true, ["Urubini Flamenguini"] = true,
+    ["Los Matteos"] = true, ["Blackhole Goat"] = true, ["Tartaruga Cisterna"] = true, ["Dul Dul Dul"] = true, ["Bisonte Giuppitere"] = true,
+    ["Alessio"] = true, ["Sammyni Spyderini"] = true, ["Brr es Teh Patipum"] = true
 }
 
--- Function to check if a pet is in a vending machine
-local function isPetInVendingMachine(petName)
-    local plots = workspace:WaitForChild("Plots")
+local function getMutationMap()
+    local mutationMap = {}
+    local plots = Workspace:FindFirstChild("Plots")
+    if not plots then return mutationMap end
     for _, plot in ipairs(plots:GetChildren()) do
-        for _, textlabel in ipairs(plot:GetDescendants()) do
-            if textlabel:IsA("TextLabel") and textlabel.Name == "Price" then
-                local parent = textlabel.Parent
-                if parent:FindFirstChild("Stolen") and parent.Stolen.Text == "IN MACHINE" then
-                    local displayNameLabel = parent:FindFirstChild("DisplayName")
-                    local animalName = displayNameLabel and displayNameLabel:IsA("TextLabel") and displayNameLabel.Text or "Unknown"
-                    if animalName == petName then
-                        return true
-                    end
-                end
-            end
-        end
-    end
-    return false
-end
-
-local function getPlotFromPosition(pos)
-    if typeof(pos) ~= "Vector3" then
-        if pos:IsA("Model") then
-            local root = pos:FindFirstChild("RootPart") or pos:FindFirstChildWhichIsA("BasePart")
-            if not root then return nil end
-            pos = root.Position
-        elseif pos:IsA("BasePart") then
-            pos = pos.Position
-        else
-            return nil
-        end
-    end
-    local plotsFolder = workspace:FindFirstChild("Plots")
-    if not plotsFolder then return nil end
-    local closestPlot = nil
-    local shortestDist = math.huge
-    for _, plot in ipairs(plotsFolder:GetChildren()) do
         local podiums = plot:FindFirstChild("AnimalPodiums")
         if podiums then
             for _, podium in ipairs(podiums:GetChildren()) do
                 local base = podium:FindFirstChild("Base")
                 local spawn = base and base:FindFirstChild("Spawn")
-                if spawn and spawn:IsA("BasePart") then
-                    local dist = (spawn.Position - pos).Magnitude
-                    if dist < shortestDist then
-                        shortestDist = dist
-                        closestPlot = plot
-                    end
+                local attachment = spawn and spawn:FindFirstChild("Attachment")
+                local overhead = attachment and attachment:FindFirstChild("AnimalOverhead")
+                local displayName = overhead and overhead:FindFirstChild("DisplayName")
+                local mutation = overhead and overhead:FindFirstChild("Mutation")
+                local generation = overhead and overhead:FindFirstChild("Generation")
+                if spawn and displayName and displayName:IsA("TextLabel") then
+                    local name = displayName.Text
+                    local mutationText = (mutation and mutation:IsA("TextLabel") and mutation.Visible and mutation.Text ~= "" and mutation.Text ~= "Normal") and mutation.Text or "Normal"
+                    local generationText = (generation and generation:IsA("TextLabel")) and generation.Text or "Unknown"
+                    table.insert(mutationMap, {
+                        name = name,
+                        position = spawn.Position,
+                        mutation = mutationText,
+                        generation = generationText
+                    })
                 end
             end
         end
     end
-    return closestPlot
+    return mutationMap
 end
 
-local function getMyPlot()
-    local ok, result = pcall(function() return PlotController:GetMyPlot() end)
-    if not ok or not result then return nil end
-    local plotModel = result and result.PlotModel
-    return typeof(plotModel) == "Instance" and plotModel or nil
-end
-
-local function isInEnemyPlot(model)
-    local myPlot = getMyPlot()
-    if not myPlot then return true end
-    return not myPlot:IsAncestorOf(model)
-end
-
-local function isBasePet(m)
-    return m:IsA("Model") and ALL_ANIMAL_NAMES[m.Name]
-end
-
-local function clearPetESP()
-    for _, m in ipairs(workspace:GetChildren()) do
-        if m:FindFirstChild("PetESP") then m.PetESP:Destroy() end
-        if m:FindFirstChild("PetESP_Label") then m.PetESP_Label:Destroy() end
+local function parseGen(genStr)
+    if not genStr or genStr == "Stolen" or genStr == "Unknown" then return 0 end
+    local num = tonumber(genStr:match("%d+"))
+    if not num then return 0 end
+    if genStr:find("M") then
+        return num * 1_000_000
+    elseif genStr:find("K") then
+        return num * 1_000
+    else
+        return num
     end
 end
 
-local function startRainbow(obj, prop)
-    local cycleTime = 4
-    task.spawn(function()
-        while obj and obj.Parent do
-            local h = (tick() % cycleTime) / cycleTime
-            obj[prop] = Color3.fromHSV(h, 1, 1)
-            RunService.Heartbeat:Wait()
+local function createESP(pet, mutationText, generationText)
+    if pet:FindFirstChild("ESP_Tag") then return end
+    local head = pet:FindFirstChild("Head") or pet:FindFirstChildWhichIsA("BasePart")
+    if not head then return end
+    local genValue = parseGen(generationText)
+    local genColor = Color3.fromRGB(255,0,0)
+    if genValue >= 1_000_000 then
+        genColor = Color3.fromRGB(0,255,0)
+    elseif genValue >= 500_000 then
+        genColor = Color3.fromRGB(0,200,0)
+    elseif genValue >= 50_000 then
+        genColor = Color3.fromRGB(255,165,0)
+    end
+    local bill = Instance.new("BillboardGui")
+    bill.Name = "ESP_Tag"
+    bill.Size = UDim2.new(0, 200, 0, 60)
+    bill.StudsOffset = Vector3.new(0, 3, 0)
+    bill.AlwaysOnTop = true
+    bill.Parent = pet
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, 0, 0.33, 0)
+    nameLabel.Position = UDim2.new(0,0,0,0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = "🐾 ".. pet.Name
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+    nameLabel.TextStrokeTransparency = 0
+    nameLabel.Font = Enum.Font.SourceSansBold
+    nameLabel.TextScaled = true
+    nameLabel.TextWrapped = true
+    nameLabel.Parent = bill
+    local mutationLabel = Instance.new("TextLabel")
+    mutationLabel.Size = UDim2.new(1, 0, 0.33, 0)
+    mutationLabel.Position = UDim2.new(0,0,0.33,0)
+    mutationLabel.BackgroundTransparency = 1
+    mutationLabel.Text = "🧬: " .. mutationText
+    mutationLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+    mutationLabel.TextStrokeTransparency = 0
+    mutationLabel.Font = Enum.Font.SourceSansBold
+    mutationLabel.TextScaled = true
+    mutationLabel.TextWrapped = true
+    mutationLabel.Parent = bill
+    local genLabel = Instance.new("TextLabel")
+    genLabel.Size = UDim2.new(1, 0, 0.33, 0)
+    genLabel.Position = UDim2.new(0,0,0.66,0)
+    genLabel.BackgroundTransparency = 1
+    genLabel.Text = "💰: " .. generationText
+    genLabel.TextColor3 = genColor
+    genLabel.TextStrokeTransparency = 0
+    genLabel.Font = Enum.Font.SourceSansBold
+    genLabel.TextScaled = true
+    genLabel.TextWrapped = true
+    genLabel.Parent = bill
+    local att0 = Instance.new("Attachment", head)
+    local att1 = Instance.new("Attachment", LocalPlayer.Character:WaitForChild("HumanoidRootPart"))
+    local beam = Instance.new("Beam")
+    beam.Color = ColorSequence.new(Color3.fromRGB(255, 255, 0))
+    beam.Width0 = 0.2
+    beam.Width1 = 0.2
+    beam.Attachment0 = att0
+    beam.Attachment1 = att1
+    beam.Parent = head
+end
+
+local function showCenterMessage()
+    local msg = Instance.new("TextLabel")
+    msg.Size = UDim2.new(0.8, 0, 0.15, 0)
+    msg.Position = UDim2.new(0.1, 0, 0.4, 0)
+    msg.BackgroundTransparency = 1
+    msg.Text = "⚠ I'm Sorry If this esp dosent work and ill try fixing it if its broken Sorry for the inconvenience. Thank you so much for the support. I love you all.❤"
+    msg.TextColor3 = Color3.fromRGB(180,180,180)
+    msg.TextWrapped = true
+    msg.Font = Enum.Font.GothamSemibold
+    msg.TextScaled = true
+    msg.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    task.delay(10, function()
+        if msg then
+            msg:Destroy()
         end
     end)
 end
 
-local function formatNumber(n)
-    return tostring(n):reverse():gsub('%d%d%d', '%1,'):reverse():gsub('^,', '')
-end
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    showCenterMessage()
+end)
 
-local function getTraitMultiplier(model)
-    local traitSource = model:FindFirstChild("Instance") or model
-    local traitJson = traitSource:GetAttribute("Traits")
-    if not traitJson then return 1 end
-    local success, traitList = pcall(function()
-        return HttpService:JSONDecode(traitJson)
-    end)
-    if not success or typeof(traitList) ~= "table" then return 1 end
-    local mult = 1
-    for _, traitName in ipairs(traitList) do
-        local trait = TraitsModule[traitName]
-        if trait and trait.MultiplierModifier then
-            mult *= trait.MultiplierModifier
-        end
-    end
-    return mult
-end
+local lastUpdate = 0
+local UPDATE_INTERVAL = 0.5
 
-local function getMutationMultiplier(model)
-    local mutation = model:GetAttribute("Mutation")
-    if not mutation then return 1 end
-    local data = MutationsModule[mutation]
-    if data and data.MultiplierModifier then
-        return data.MultiplierModifier
-    end
-    return 1
-end
+RunService.Heartbeat:Connect(function(dt)
+    lastUpdate = lastUpdate + dt
+    if lastUpdate < UPDATE_INTERVAL then return end
+    lastUpdate = 0
 
-local function getFinalGeneration(model)
-    local animalData = AnimalsModule[model.Name]
-    if not animalData then return 0 end
-    local baseGen = animalData.Generation or 0
-    local traitMult = getTraitMultiplier(model)
-    local mutationMult = getMutationMultiplier(model)
-    local total = baseGen * traitMult * mutationMult
-    return math.round(total), baseGen, traitMult, mutationMult
-end
-
-local function attachPetESP(m, g)
-    local root = m:FindFirstChild("RootPart") or m:FindFirstChildWhichIsA("BasePart")
-    if not root then return end
-    local hl = Instance.new('Highlight')
-    hl.Name = "PetESP"
-    hl.Adornee = m
-    hl.OutlineColor = Color3.new(0, 0, 0)
-    hl.FillTransparency = 0.25
-    hl.OutlineTransparency = 0
-    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.Parent = m
-    startRainbow(hl, "FillColor")
-    startRainbow(hl, "OutlineColor")
-    local gui = Instance.new('BillboardGui')
-    gui.Name = "PetESP_Label"
-    gui.Adornee = root
-    gui.AlwaysOnTop = true
-    gui.Size = UDim2.new(0, 400, 0, 80)
-    gui.StudsOffset = Vector3.new(0, 6.5, 0)
-    gui.Parent = m
-    local n = Instance.new('TextLabel')
-    n.Size = UDim2.new(1, 0, 0.5, 0)
-    n.Position = UDim2.new(0.5, 0, 0.35, 0)
-    n.AnchorPoint = Vector2.new(0.5, 0.5)
-    n.BackgroundTransparency = 1
-    n.Font = Enum.Font.GothamBlack
-    n.TextSize = 22
-    n.Text = m.Name:upper()
-    n.TextXAlignment = Enum.TextXAlignment.Center
-    n.Parent = gui
-    local ns = Instance.new('UIStroke')
-    ns.Thickness = 4.5
-    ns.Color = Color3.new(0, 0, 0)
-    ns.Parent = n
-    local nso = Instance.new('UIStroke')
-    nso.Thickness = 5.5
-    nso.Color = Color3.new(1, 1, 1)
-    nso.Parent = n
-    local gL = Instance.new('TextLabel')
-    gL.Size = UDim2.new(1, 0, 0.5, 0)
-    gL.Position = UDim2.new(0.5, 0, 0.75, 0)
-    gL.AnchorPoint = Vector2.new(0.5, 0.5)
-    gL.BackgroundTransparency = 1
-    gL.Font = Enum.Font.GothamBlack
-    gL.TextSize = 32
-    gL.Text = '$' .. formatNumber(g) .. '/s'
-    gL.TextXAlignment = Enum.TextXAlignment.Center
-    gL.Parent = gui
-    local gs = Instance.new('UIStroke')
-    gs.Thickness = 6
-    gs.Color = Color3.new(0, 0, 0)
-    gs.Parent = gL
-    local gso = Instance.new('UIStroke')
-    gso.Thickness = 7
-    gso.Color = Color3.new(1, 1, 1)
-    gso.Parent = gL
-    startRainbow(n, 'TextColor3')
-    startRainbow(gL, 'TextColor3')
-end
-
-local function runPetScanLoop()
-    if isPetScanRunning then return end
-    isPetScanRunning = true
-    while true do
-        local highest, bestGen = nil, -1
-        for _, m in ipairs(workspace:GetChildren()) do
-            if isBasePet(m) and isInEnemyPlot(m) then
-                -- Skip pets that are in vending machines
-                if not isPetInVendingMachine(m.Name) then
-                    local g = getFinalGeneration(m)
-                    if g > bestGen then
-                        bestGen = g
-                        highest = m
-                    end
+    local mutationMap = getMutationMap()
+    local bestPetObj, bestGenValue, bestMutation, bestGeneration = nil, -1, "Normal", "Unknown"
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and targetPets[obj.Name] then
+            local mutationText, generationText = "Normal", "Unknown"
+            for _, data in ipairs(mutationMap) do
+                if data.name == obj.Name then
+                    mutationText = data.mutation or "Normal"
+                    generationText = data.generation or "Unknown"
+                    break
+                end
+            end
+            if generationText ~= "Unknown" and generationText ~= "Stolen" then
+                local genValue = parseGen(generationText)
+                if genValue > bestGenValue then
+                    bestPetObj = obj
+                    bestGenValue = genValue
+                    bestMutation = mutationText
+                    bestGeneration = generationText
                 end
             end
         end
-        highestGenAnimal = highest
-        clearPetESP()
-        if highest then
-            attachPetESP(highest, bestGen)
-        end
-        task.wait(INTERVAL)
     end
-end
-
-task.spawn(runPetScanLoop)
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj:FindFirstChild("ESP_Tag") then
+            obj.ESP_Tag:Destroy()
+        end
+    end
+    if bestPetObj then
+        createESP(bestPetObj, bestMutation, bestGeneration)
+    end
+end)
